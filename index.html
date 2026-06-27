@@ -221,8 +221,16 @@
                 triggerAlert(currentPriority);
                 localNotes.unshift({ id: Date.now(), text: text, priority: currentPriority, timestamp: new Date(timestamp).toLocaleString() });
                 renderNotes();
-            } catch (error) { showToast("Failed to save to Notion!", "Error");
-            } finally { btn.disabled = false; spinner.style.display = 'none'; btnText.innerText = 'SAVE TO NOTION'; }
+                    } catch (error) {
+            let errorMsg = "Network error";
+            try {
+                const errorData = await error.json();
+                errorMsg = errorData.message || "Unknown API Error";
+            } catch(e) {
+                errorMsg = error.message || "Failed to connect";
+            }
+            showToast("Error: " + errorMsg, "Error");
+        } finally { btn.disabled = false; spinner.style.display = 'none'; btnText.innerText = 'SAVE TO NOTION'; }
         }
 
         if ('webkitSpeechRecognition' in window) {
