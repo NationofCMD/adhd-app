@@ -89,11 +89,12 @@
             position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); 
             padding: 15px 20px; border-radius: 8px; color: white; font-weight: bold;
             opacity: 0; transition: 0.3s; z-index: 2000; box-shadow: 0 4px 10px rgba(0,0,0,0.5); text-align: center;
+            font-size: 0.9rem;
         }
         .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
         .toast.Extreme { background: var(--extreme); } .toast.High { background: var(--high); }
         .toast.Medium { background: #e6b800; color: black; } .toast.Casual { background: var(--casual); color: black; }
-        .toast.Error { background: #333; border: 1px solid var(--extreme); }
+        .toast.Error { background: #333; border: 1px solid var(--extreme); color: #ff4d4f; }
     </style>
 </head>
 <body>
@@ -114,7 +115,7 @@
         </div>
         <button class="save-btn" id="saveBtn" onclick="saveNote()">
             <div class="spinner" id="spinner"></div>
-            <span id="btnText">SAVE TO NOTION</span>
+            <span id="btnText">SAVE TO NOTION V2</span>
         </button>
         <div class="controls">
             <div class="filters">
@@ -221,16 +222,19 @@
                 triggerAlert(currentPriority);
                 localNotes.unshift({ id: Date.now(), text: text, priority: currentPriority, timestamp: new Date(timestamp).toLocaleString() });
                 renderNotes();
-                    } catch (error) {
-            let errorMsg = "Network error";
-            try {
-                const errorData = await error.json();
-                errorMsg = errorData.message || "Unknown API Error";
-            } catch(e) {
-                errorMsg = error.message || "Failed to connect";
+            } catch (error) {
+                // THIS IS THE NEW ERROR READER
+                let errorMsg = "Network error";
+                try {
+                    const errorData = await error.json();
+                    errorMsg = errorData.message || "Unknown API Error";
+                } catch(e) {
+                    errorMsg = error.message || "Failed to connect";
+                }
+                showToast("Error: " + errorMsg, "Error");
+            } finally { 
+                btn.disabled = false; spinner.style.display = 'none'; btnText.innerText = 'SAVE TO NOTION V2'; 
             }
-            showToast("Error: " + errorMsg, "Error");
-        } finally { btn.disabled = false; spinner.style.display = 'none'; btnText.innerText = 'SAVE TO NOTION'; }
         }
 
         if ('webkitSpeechRecognition' in window) {
@@ -281,7 +285,7 @@
         function showToast(msg, type) {
             const toast = document.getElementById('alertToast'); toast.className = `toast ${type}`;
             toast.innerText = msg; void toast.offsetWidth; toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3000);
+            setTimeout(() => toast.classList.remove('show'), 5000); // Left it on screen longer so you can read it!
         }
     </script>
 </body>
