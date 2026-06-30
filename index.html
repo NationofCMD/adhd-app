@@ -48,11 +48,8 @@
         .save-btn {
             width: 100%; padding: 18px; background: #007bff; color: white; border: none;
             border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; margin-bottom: 20px;
-            display: flex; justify-content: center; align-items: center; gap: 10px;
         }
-        .save-btn:disabled { background: #555; cursor: not-allowed; }
-        .spinner { width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; display: none; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        .save-btn:disabled { opacity: 0.6; cursor: default; }
         .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #444; padding-bottom: 10px; }
         .filters button { background: transparent; border: none; color: #888; cursor: pointer; font-weight: bold; margin-right: 10px; font-size: 1.1rem; }
         .filters button.active { color: var(--text); }
@@ -63,17 +60,24 @@
         .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: #007bff; }
         input:checked + .slider:before { transform: translateX(20px); }
+        .sync-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 0.8rem; color: #888; }
+        .sync-bar button { background: transparent; border: 1px solid #555; color: #aaa; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
+        .sync-bar button:disabled { opacity: 0.4; cursor: default; }
         .notes-list { display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; }
         .note-card { padding: 15px; border-radius: 8px; background: var(--bg); border-left: 5px solid #444; position: relative; }
         .note-card.Extreme { border-left-color: var(--extreme); }
         .note-card.High { border-left-color: var(--high); }
         .note-card.Medium { border-left-color: var(--medium); }
         .note-card.Casual { border-left-color: var(--casual); }
-        .note-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.8rem; }
+        .note-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.8rem; align-items: center; }
         .badge { font-weight: bold; text-transform: uppercase; }
         .badge.Extreme { color: var(--extreme); } .badge.High { color: var(--high); }
         .badge.Medium { color: var(--medium); } .badge.Casual { color: var(--casual); }
+        .meta { display: flex; align-items: center; gap: 8px; }
         .timestamp { color: #888; }
+        .sync-tag { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; }
+        .sync-tag.ok { color: var(--casual); border: 1px solid var(--casual); }
+        .sync-tag.pending { color: var(--high); border: 1px solid var(--high); }
         .note-text { white-space: pre-wrap; word-wrap: break-word; line-height: 1.4; }
         .modal-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -82,11 +86,11 @@
         .modal-content { background: var(--surface); padding: 20px; border-radius: 12px; width: 100%; max-width: 400px; }
         .modal-input {
             width: 100%; padding: 10px; margin: 8px 0 15px 0; background: var(--bg); border: 1px solid #444;
-            color: white; border-radius: 5px; font-family: monospace;
+            color: white; border-radius: 5px; font-family: monospace; font-size: 0.85rem;
         }
         .close-modal { float: right; background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; }
         .toast {
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); 
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px);
             padding: 15px 20px; border-radius: 8px; color: white; font-weight: bold;
             opacity: 0; transition: 0.3s; z-index: 2000; box-shadow: 0 4px 10px rgba(0,0,0,0.5); text-align: center;
             font-size: 0.9rem; max-width: 90%;
@@ -100,7 +104,7 @@
 <body>
     <div class="header">
         <h1>⚡ Capture</h1>
-        <button onclick="openSettings()">⚙️ Settings</button>
+        <button onclick="openSettings()">⚙️ Notion</button>
     </div>
     <div class="main-content">
         <div class="input-area">
@@ -113,10 +117,13 @@
             <button class="p-btn" data-p="Medium" onclick="setPriority(this)">🟡 Medium</button>
             <button class="p-btn" data-p="Casual" onclick="setPriority(this)">🟢 Casual</button>
         </div>
-        <button class="save-btn" id="saveBtn" onclick="saveNote()">
-            <div class="spinner" id="spinner"></div>
-            <span id="btnText">SAVE TO NOTION V5</span>
+        <button class="save-btn" id="saveBtn" onclick="logToNotion()">
+            LOG TO NOTION
         </button>
+        <div class="sync-bar">
+            <span id="syncStatus">All notes saved locally.</span>
+            <button id="retryBtn" onclick="retryUnsynced(false)">↻ Retry sync</button>
+        </div>
         <div class="controls">
             <div class="filters">
                 <button class="active" onclick="filterNotes('All', this)">All</button>
@@ -131,18 +138,20 @@
             </div>
         </div>
         <div class="notes-list" id="notesList">
-            <p style="text-align:center;color:#666;">Loading notes from Notion...</p>
+            <p style="text-align:center;color:#666;">Your recent captures will appear here.</p>
         </div>
     </div>
     <div class="modal-overlay" id="settingsModal">
         <div class="modal-content">
             <button class="close-modal" onclick="closeSettings()">&times;</button>
-            <h2>Notion Setup</h2>
-            <label style="font-size:0.9rem; color:#aaa;">Notion API Token (Secret)</label>
-            <input type="password" class="modal-input" id="inputToken" placeholder="ntn_...">
-            <label style="font-size:0.9rem; color:#aaa;">Notion Database ID</label>
-            <input type="text" class="modal-input" id="inputDbId" placeholder="32 character string...">
-            <button onclick="saveSettings()" style="width:100%; padding:10px; background:#007bff; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Save & Connect</button>
+            <h2>Notion Settings</h2>
+            <p style="font-size:0.8rem; color:#888; margin-bottom:10px;">Paste the URL of the Cloudflare Worker you deployed (see SETUP.md).</p>
+            <label style="font-size:0.9rem; color:#aaa;">Worker URL</label>
+            <input type="url" class="modal-input" id="inputWorkerUrl" placeholder="https://adhd-capture.yourname.workers.dev">
+            <label style="font-size:0.9rem; color:#aaa;">App Secret (optional)</label>
+            <input type="text" class="modal-input" id="inputAppSecret" placeholder="Only if you set APP_SECRET on the Worker">
+            <button onclick="saveSettings()" style="width:100%; padding:10px; background:#007bff; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Save</button>
+            <button onclick="testConnection()" style="width:100%; padding:10px; margin-top:8px; background:transparent; color:#aaa; border:1px solid #555; border-radius:5px; cursor:pointer;">Test connection</button>
         </div>
     </div>
     <div class="toast" id="alertToast"></div>
@@ -152,104 +161,134 @@
         let currentFilter = 'All';
         let isRecording = false;
         let recognition;
-        let notionToken = localStorage.getItem('notion_token') || '';
-        let notionDbId = localStorage.getItem('notion_db_id') || '';
+        let workerUrl = localStorage.getItem('notion_worker_url') || '';
+        let appSecret = localStorage.getItem('notion_app_secret') || '';
         let localNotes = JSON.parse(localStorage.getItem('adhd_notes_cache')) || [];
 
         window.onload = () => {
-            if (!notionToken || !notionDbId) { openSettings(); } else { fetchNotionNotes(); }
+            workerUrl = normalizeUrl(workerUrl); // clean up any old http:// value
+            localStorage.setItem('notion_worker_url', workerUrl);
+            document.getElementById('inputWorkerUrl').value = workerUrl;
+            document.getElementById('inputAppSecret').value = appSecret;
+            if (!workerUrl) { openSettings(); }
             renderNotes();
+            updateSyncStatus();
+            if (workerUrl) retryUnsynced(true); // quietly flush anything left over
         };
 
-        async function saveSettings() {
-            notionToken = document.getElementById('inputToken').value.replace(/[\r\n\s]+/g, '');
-            notionDbId = document.getElementById('inputDbId').value.replace(/[\r\n\s]+/g, '');
-            localStorage.setItem('notion_token', notionToken);
-            localStorage.setItem('notion_db_id', notionDbId);
+        function persist() { localStorage.setItem('adhd_notes_cache', JSON.stringify(localNotes)); }
+
+        // Force https + strip trailing slash so we never trigger a redirect
+        // (a redirect would turn our POST into a GET → 405).
+        function normalizeUrl(u) {
+            u = (u || '').trim().replace(/\/+$/, '');
+            if (/^http:\/\//i.test(u)) u = u.replace(/^http:\/\//i, 'https://');
+            else if (u && !/^https:\/\//i.test(u)) u = 'https://' + u;
+            return u;
+        }
+
+        function saveSettings() {
+            workerUrl = normalizeUrl(document.getElementById('inputWorkerUrl').value);
+            appSecret = document.getElementById('inputAppSecret').value.trim();
+            document.getElementById('inputWorkerUrl').value = workerUrl;
+            localStorage.setItem('notion_worker_url', workerUrl);
+            localStorage.setItem('notion_app_secret', appSecret);
             closeSettings();
-            fetchNotionNotes();
+            showToast('Settings saved', 'Casual');
+            updateSyncStatus();
         }
 
         function openSettings() { document.getElementById('settingsModal').style.display = 'flex'; }
         function closeSettings() { document.getElementById('settingsModal').style.display = 'none'; }
 
-        async function fetchNotionNotes() {
-            if(!notionToken || !notionDbId) return;
-            try {
-                const res = await fetch(`https://api.notion.com/v1/databases/${notionDbId}/query`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${notionToken}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sorts: [{ property: 'Created At', direction: 'descending' }] })
-                });
-                const data = await res.json();
-                if(data.results) {
-                    localNotes = data.results.map(page => ({
-                        id: page.id,
-                        text: page.properties.Name.title[0]?.plain_text || "Empty Note",
-                        priority: page.properties.Priority.select?.name || 'Casual',
-                        timestamp: new Date(page.properties['Created At'].date?.start || page.created_time).toLocaleString()
-                    })).filter(n => n.text !== "Empty Note");
-                    localStorage.setItem('adhd_notes_cache', JSON.stringify(localNotes));
-                    renderNotes();
-                }
-            } catch (e) { console.error("Fetch error", e); }
+        function buildHeaders() {
+            const h = { 'Content-Type': 'application/json' };
+            if (appSecret) h['X-App-Secret'] = appSecret;
+            return h;
         }
 
-        function saveNote() {
+        // Send one cached note to Notion via the Worker. Returns true on success.
+        async function syncNote(note) {
+            try {
+                const res = await fetch(workerUrl, {
+                    method: 'POST',
+                    headers: buildHeaders(),
+                    redirect: 'error',
+                    body: JSON.stringify({ text: note.text, priority: note.priority, timestamp: note.timestamp })
+                });
+                let data = {};
+                try { data = await res.json(); } catch (_) {}
+                if (!res.ok) {
+                    const msg = data.error || ('Notion error (' + res.status + ')');
+                    showToast('⚠️ ' + msg + ' — kept locally', 'Error');
+                    console.error('Notion sync failed:', res.status, data);
+                    return false;
+                }
+                note.synced = true;
+                persist(); renderNotes(); updateSyncStatus();
+                return true;
+            } catch (e) {
+                showToast('⚠️ Network error — saved locally, will retry', 'Error');
+                console.error('Sync network error:', e);
+                return false;
+            }
+        }
+
+        async function logToNotion() {
             const text = document.getElementById('noteInput').value.trim();
             if (!text) return;
-            if (!notionToken || !notionDbId) { showToast("Please configure Settings first", "Error"); return; }
-            
+            if (!workerUrl) { showToast('Set your Worker URL first (⚙️)', 'Error'); openSettings(); return; }
+
+            // Save locally FIRST so a note is never lost, even if the network fails.
+            const note = { id: Date.now(), text: text, priority: currentPriority, timestamp: new Date().toLocaleString(), synced: false };
+            localNotes.unshift(note);
+            persist(); renderNotes(); updateSyncStatus();
+            document.getElementById('noteInput').value = '';
+
             const btn = document.getElementById('saveBtn');
-            const spinner = document.getElementById('spinner');
-            const btnText = document.getElementById('btnText');
-            btn.disabled = true; spinner.style.display = 'block'; btnText.innerText = 'SAVING...';
-            
-            const timestamp = new Date().toISOString();
-            const payload = {
-                parent: { database_id: notionDbId },
-                properties: {
-                    'Name': { title: [{ text: { content: text } }] },
-                    'Priority': { select: { name: currentPriority } },
-                    'Created At': { date: { start: timestamp } }
-                }
-            };
+            btn.disabled = true; btn.textContent = 'Logging…';
+            const ok = await syncNote(note);
+            btn.disabled = false; btn.textContent = 'LOG TO NOTION';
+            if (ok) { triggerAlert(note.priority); }
+        }
 
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', 'https://api.notion.com/v1/pages', true);
-            xhr.setRequestHeader('Authorization', `Bearer ${notionToken}`);
-            xhr.setRequestHeader('Notion-Version', '2022-06-28');
-            
-            // V5 FIX: BYPASS iOS CORS PREFLIGHT HANDSHAKE
-            // Sending as text/plain forces iOS to skip the blocked handshake. 
-            xhr.setRequestHeader('Content-Type', 'text/plain');
+        async function retryUnsynced(silent) {
+            const pending = localNotes.filter(n => !n.synced);
+            if (pending.length === 0) { if (!silent) showToast('Everything is synced ✓', 'Casual'); return; }
+            if (!workerUrl) { if (!silent) { showToast('Set your Worker URL first (⚙️)', 'Error'); openSettings(); } return; }
+            const btn = document.getElementById('retryBtn');
+            btn.disabled = true;
+            let synced = 0;
+            for (const note of pending) { if (await syncNote(note)) synced++; }
+            btn.disabled = false;
+            if (!silent) showToast('Synced ' + synced + '/' + pending.length, synced === pending.length ? 'Casual' : 'Error');
+        }
 
-            xhr.onload = function() {
-                btn.disabled = false; spinner.style.display = 'none'; btnText.innerText = 'SAVE TO NOTION V5';
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    document.getElementById('noteInput').value = '';
-                    triggerAlert(currentPriority);
-                    localNotes.unshift({ id: Date.now(), text: text, priority: currentPriority, timestamp: new Date(timestamp).toLocaleString() });
-                    renderNotes();
-                } else {
-                    let errorMsg = "Unknown Error";
-                    try {
-                        const errorData = JSON.parse(xhr.responseText);
-                        errorMsg = errorData.message || "Notion rejected the request";
-                    } catch(e) {
-                        errorMsg = "Status Code: " + xhr.status;
-                    }
-                    // If we get a "body must be JSON" error, it PROVES the network works but iOS blocked the header!
-                    showToast("Notion Error: " + errorMsg, "Error");
-                }
-            };
+        async function testConnection() {
+            const url = normalizeUrl(document.getElementById('inputWorkerUrl').value);
+            const secret = document.getElementById('inputAppSecret').value.trim();
+            if (!url) { showToast('Enter a Worker URL first', 'Error'); return; }
+            document.getElementById('inputWorkerUrl').value = url;
+            try {
+                const h = { 'Content-Type': 'application/json' };
+                if (secret) h['X-App-Secret'] = secret;
+                const res = await fetch(url, { method: 'POST', headers: h, redirect: 'error',
+                    body: JSON.stringify({ text: '✅ Test note from ADHD Capture', priority: currentPriority, timestamp: new Date().toLocaleString() }) });
+                let data = {};
+                try { data = await res.json(); } catch (_) {}
+                if (res.ok) showToast('Connected! Check your Notion database.', 'Casual');
+                else showToast('⚠️ ' + (data.error || ('Error ' + res.status)), 'Error');
+            } catch (e) {
+                showToast('⚠️ Could not reach the Worker (check the URL).', 'Error');
+                console.error(e);
+            }
+        }
 
-            xhr.onerror = function() {
-                btn.disabled = false; spinner.style.display = 'none'; btnText.innerText = 'SAVE TO NOTION V5';
-                showToast("Hard Network Block: A DNS filter, VPN, or Firewall is blocking api.notion.com.", "Error");
-            };
-
-            xhr.send(JSON.stringify(payload));
+        function updateSyncStatus() {
+            const pending = localNotes.filter(n => !n.synced).length;
+            const el = document.getElementById('syncStatus');
+            el.textContent = pending === 0 ? 'All notes synced to Notion ✓' : (pending + ' note' + (pending === 1 ? '' : 's') + ' waiting to sync');
+            el.style.color = pending === 0 ? '#52c41a' : '#fa8c16';
         }
 
         if ('webkitSpeechRecognition' in window) {
@@ -265,7 +304,7 @@
 
         function toggleMic() {
             if (!recognition) { alert("Voice not supported in this browser."); return; }
-            if (isRecording) { recognition.stop(); } 
+            if (isRecording) { recognition.stop(); }
             else { recognition.start(); isRecording = true; document.getElementById('micBtn').classList.add('recording'); }
         }
 
@@ -280,13 +319,20 @@
             if(btn) btn.classList.add('active'); renderNotes();
         }
 
+        function escapeHtml(s) {
+            return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
         function renderNotes() {
             const list = document.getElementById('notesList'); list.innerHTML = '';
             const filtered = currentFilter === 'All' ? localNotes : localNotes.filter(n => n.priority === currentFilter);
             if (filtered.length === 0) { list.innerHTML = '<p style="text-align:center;color:#666;">No notes here. You are all clear!</p>'; return; }
             filtered.forEach(note => {
                 const div = document.createElement('div'); div.className = `note-card ${note.priority}`;
-                div.innerHTML = `<div class="note-header"><span class="badge ${note.priority}">${note.priority}</span><span class="timestamp">${note.timestamp}</span></div><div class="note-text">${note.text}</div>`;
+                const tag = note.synced
+                    ? '<span class="sync-tag ok">✓ Notion</span>'
+                    : '<span class="sync-tag pending">⏳ pending</span>';
+                div.innerHTML = `<div class="note-header"><span class="badge ${note.priority}">${note.priority}</span><span class="meta">${tag}<span class="timestamp">${note.timestamp}</span></span></div><div class="note-text">${escapeHtml(note.text)}</div>`;
                 list.appendChild(div);
             });
         }
@@ -294,7 +340,7 @@
         function triggerAlert(priority) {
             if (!document.getElementById('alertToggle').checked) return;
             const toast = document.getElementById('alertToast'); toast.className = `toast ${priority}`;
-            toast.innerText = `🚨 ${priority} Priority Saved!`; void toast.offsetWidth; toast.classList.add('show');
+            toast.innerText = `✅ ${priority} note saved to Notion!`; void toast.offsetWidth; toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
         function showToast(msg, type) {
